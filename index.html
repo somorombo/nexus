@@ -5,29 +5,29 @@
   <title>Nexus Chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-[#313338] text-white h-screen">
+<body class="bg-[#313338] text-white h-screen overflow-hidden">
 
   <div id="auth-screen" class="flex items-center justify-center h-full">
-    <div class="bg-[#2b2d31] p-8 rounded-lg w-80 border border-gray-700">
+    <div class="bg-[#2b2d31] p-8 rounded-lg w-80 border border-gray-700 shadow-2xl">
       <h2 id="title" class="text-xl font-bold mb-4 text-center">Nexus Giriş</h2>
-      <input id="email" type="email" placeholder="E-posta" class="w-full p-2 mb-2 bg-[#1e1f22] rounded">
-      <input id="pass" type="password" placeholder="Şifre" class="w-full p-2 mb-4 bg-[#1e1f22] rounded">
-      <button id="btn" class="w-full bg-[#5865f2] p-2 rounded font-bold hover:bg-[#4752c4]">Giriş Yap</button>
-      <p id="toggle" class="text-xs text-center mt-4 cursor-pointer text-gray-400 hover:underline">Kayıt Ol</p>
+      <input id="email" type="email" placeholder="E-posta" class="w-full p-2 mb-2 bg-[#1e1f22] rounded border border-gray-600 focus:border-[#5865f2] outline-none">
+      <input id="pass" type="password" placeholder="Şifre" class="w-full p-2 mb-4 bg-[#1e1f22] rounded border border-gray-600 focus:border-[#5865f2] outline-none">
+      <button id="btn" class="w-full bg-[#5865f2] p-2 rounded font-bold hover:bg-[#4752c4] transition">Giriş Yap</button>
+      <p id="toggle" class="text-xs text-center mt-4 cursor-pointer text-gray-400 hover:text-white transition">Kayıt Ol</p>
     </div>
   </div>
 
   <div id="app-screen" class="hidden flex h-full">
-    <div class="w-64 bg-[#2b2d31] p-4">
+    <div class="w-64 bg-[#2b2d31] p-4 flex flex-col">
       <h2 class="font-bold mb-4">Kanallar</h2>
-      <button onclick="addRoom()" class="text-sm bg-green-600 w-full p-1 rounded">+ Yeni Oda</button>
-      <div id="rooms" class="mt-4 space-y-2"></div>
+      <button onclick="addRoom()" class="text-sm bg-green-600 w-full p-1 rounded hover:bg-green-700">+ Yeni Oda</button>
+      <div id="rooms" class="mt-4 space-y-2 flex-1"></div>
     </div>
     <div class="flex-1 flex flex-col bg-[#313338]">
-      <div id="messages" class="flex-1 p-4 overflow-y-auto"></div>
+      <div id="messages" class="flex-1 p-4 overflow-y-auto space-y-2"></div>
       <div class="p-4 flex gap-2">
-        <input id="msg" class="flex-1 bg-[#1e1f22] p-2 rounded" placeholder="Mesaj yaz...">
-        <button id="send" class="bg-[#5865f2] px-4 rounded">Gönder</button>
+        <input id="msg" class="flex-1 bg-[#1e1f22] p-2 rounded border border-gray-700 outline-none" placeholder="Mesaj yaz...">
+        <button id="send" class="bg-[#5865f2] px-4 rounded hover:bg-[#4752c4] transition">Gönder</button>
       </div>
     </div>
   </div>
@@ -50,11 +50,10 @@
     const app = initializeApp(config);
     const auth = getAuth(app);
     const db = getDatabase(app);
-    let userEmail = "";
+    let activeRoom = null;
 
     onAuthStateChanged(auth, (user) => {
       if (user) {
-        userEmail = user.email;
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app-screen').classList.remove('hidden');
         loadRooms();
@@ -86,18 +85,28 @@
         r.innerHTML = '';
         s.forEach(c => {
           const div = document.createElement('div');
-          div.className = "cursor-pointer hover:text-blue-400";
+          div.className = "cursor-pointer p-2 hover:bg-[#383a40] rounded";
           div.innerText = "# " + c.val().name;
-          div.onclick = () => window.activeRoom = c.key;
+          div.onclick = () => { activeRoom = c.key; loadMessages(); };
           r.appendChild(div);
         });
       });
     }
 
+    function loadMessages() {
+      onValue(ref(db, 'messages/' + activeRoom), (s) => {
+        const m = document.getElementById('messages');
+        m.innerHTML = '';
+        s.forEach(c => {
+          m.innerHTML += `<div class="bg-[#2b2d31] p-2 rounded text-sm"><b>${c.val().sender}:</b> ${c.val().text}</div>`;
+        });
+      });
+    }
+
     document.getElementById('send').onclick = () => {
-      if(!window.activeRoom) return alert("Oda seç!");
+      if(!activeRoom) return alert("Önce bir oda seç!");
       const m = document.getElementById('msg');
-      set(push(ref(db, 'messages/' + window.activeRoom)), { sender: userEmail.split('@')[0], text: m.value });
+      set(push(ref(db, 'messages/' + activeRoom)), { sender: auth.currentUser.email.split('@')[0], text: m.value });
       m.value = '';
     };
   </script>
