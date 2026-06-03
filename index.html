@@ -5,8 +5,7 @@
   <title>Nexus Chat Pro</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-[#313338] text-white h-screen">
-
+<body class="bg-[#313338] text-white h-screen overflow-hidden">
   <div id="auth-screen" class="flex items-center justify-center h-full">
     <div class="bg-[#2b2d31] p-8 rounded-lg w-80 border border-gray-700">
       <h2 id="title" class="text-xl font-bold mb-4 text-center">Nexus Giriş</h2>
@@ -39,7 +38,7 @@
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    const config = {
+    const db = getDatabase(initializeApp({
       apiKey: "AIzaSyA4LiP5506uWaX4h7b6TyuAdxxYTNMJ4aw",
       authDomain: "nexus-f439d.firebaseapp.com",
       databaseURL: "https://nexus-f439d-default-rtdb.firebaseio.com",
@@ -47,95 +46,67 @@
       storageBucket: "nexus-f439d.firebasestorage.app",
       messagingSenderId: "223527974037",
       appId: "1:223527974037:web:91c740810a2aa4c2bc179c"
-    };
-
-    const db = getDatabase(initializeApp(config));
+    }));
     const auth = getAuth();
-    
-    // Global Değişkenler
-    window.activeRoom = null;
 
     onAuthStateChanged(auth, (user) => {
       if (user) {
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app-screen').classList.remove('hidden');
         loadRooms();
+        if(localStorage.getItem('activeRoom')) loadMessages();
       }
     });
 
-    document.getElementById('btn').onclick = () => {
-      const e = document.getElementById('email').value;
-      const p = document.getElementById('pass').value;
-      const isLogin = document.getElementById('title').innerText === "Nexus Giriş";
-      if(isLogin) signInWithEmailAndPassword(auth, e, p).catch(err => alert(err.message));
-      else createUserWithEmailAndPassword(auth, e, p).catch(err => alert(err.message));
-    };
-
-    document.getElementById('toggle').onclick = () => {
-      const t = document.getElementById('title');
-      t.innerText = t.innerText === "Nexus Giriş" ? "Nexus Kayıt" : "Nexus Giriş";
-      document.getElementById('btn').innerText = t.innerText === "Nexus Giriş" ? "Giriş Yap" : "Kayıt Ol";
-    };
-
-    window.addRoom = () => {
-      const name = prompt("Oda adı:");
-      if(name) set(push(ref(db, 'rooms')), { name });
-    };
-
     window.selectRoom = (id) => {
-      window.activeRoom = id;
+      localStorage.setItem('activeRoom', id);
       loadMessages();
     };
 
-    window.deleteRoom = (id) => remove(ref(db, 'rooms/' + id));
-    window.deleteMsg = (id) => remove(ref(db, 'messages/' + window.activeRoom + '/' + id));
-
-    function loadRooms() {
-      onValue(ref(db, 'rooms'), (s) => {
-        const r = document.getElementById('rooms');
-        r.innerHTML = '';
-        s.forEach(c => {
-          const div = document.createElement('div');
-          div.className = "flex justify-between items-center p-2 bg-[#36373d] rounded cursor-pointer";
-          div.innerHTML = `<span onclick="selectRoom('${c.key}')"># ${c.val().name}</span>
-                           <button onclick="deleteRoom('${c.key}')" class="text-red-500">x</button>`;
-          r.appendChild(div);
-        });
-      });
-    }
-
     function loadMessages() {
-      if (!window.activeRoom) return;
-      onValue(ref(db, 'messages/' + window.activeRoom), (s) => {
+      const room = localStorage.getItem('activeRoom');
+      if (!room) return;
+      onValue(ref(db, 'messages/' + room), (s) => {
         const m = document.getElementById('messages');
         m.innerHTML = '';
         s.forEach(c => {
           const v = c.val();
           m.innerHTML += `<div class="bg-[#2b2d31] p-2 rounded flex justify-between">
             <div><b>${v.sender}:</b> ${v.text || `<img src="${v.img}" class="w-32">`}</div>
-            <button onclick="deleteMsg('${c.key}')" class="text-red-500">Sil</button>
+            <button onclick="remove(ref(db, 'messages/${room}/${c.key}'))" class="text-red-500">Sil</button>
+          </div>`;
+        });
+      });
+    }
+
+    // Geri kalan yardımcı fonksiyonlar
+    document.getElementById('btn').onclick = () => {
+      const e = document.getElementById('email').value, p = document.getElementById('pass').value;
+      const isLogin = document.getElementById('title').innerText === "Nexus Giriş";
+      if(isLogin) signInWithEmailAndPassword(auth, e, p).catch(alert);
+      else createUserWithEmailAndPassword(auth, e, p).catch(alert);
+    };
+
+    window.addRoom = () => { const name = prompt("Oda adı:"); if(name) set(push(ref(db, 'rooms')), { name }); };
+    
+    function loadRooms() {
+      onValue(ref(db, 'rooms'), (s) => {
+        const r = document.getElementById('rooms');
+        r.innerHTML = '';
+        s.forEach(c => {
+          r.innerHTML += `<div class="flex justify-between p-2 bg-[#36373d] rounded cursor-pointer">
+            <span onclick="selectRoom('${c.key}')"># ${c.val().name}</span>
+            <button onclick="remove(ref(db, 'rooms/${c.key}'))" class="text-red-500">x</button>
           </div>`;
         });
       });
     }
 
     document.getElementById('send').onclick = () => {
-      if(!window.activeRoom) return alert("Önce bir oda seç!");
-      set(push(ref(db, 'messages/' + window.activeRoom)), { 
-        sender: auth.currentUser.email.split('@')[0], 
-        text: document.getElementById('msg').value 
-      });
+      const room = localStorage.getItem('activeRoom');
+      if(!room) return alert("Önce bir oda seç!");
+      set(push(ref(db, 'messages/' + room)), { sender: auth.currentUser.email.split('@')[0], text: document.getElementById('msg').value });
       document.getElementById('msg').value = '';
-    };
-
-    document.getElementById('fileInput').onchange = (e) => {
-      if(!window.activeRoom) return alert("Önce bir oda seç!");
-      const reader = new FileReader();
-      reader.onload = (r) => set(push(ref(db, 'messages/' + window.activeRoom)), { 
-        sender: auth.currentUser.email.split('@')[0], 
-        img: r.target.result 
-      });
-      reader.readAsDataURL(e.target.files[0]);
     };
   </script>
 </body>
