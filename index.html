@@ -13,7 +13,7 @@
       <input id="email" type="email" placeholder="E-posta" class="w-full p-2 mb-2 bg-[#1e1f22] rounded">
       <input id="pass" type="password" placeholder="Şifre" class="w-full p-2 mb-4 bg-[#1e1f22] rounded">
       <button id="btn" class="w-full bg-[#5865f2] p-2 rounded font-bold">Giriş Yap</button>
-      <p id="toggle" class="text-xs text-center mt-4 cursor-pointer text-gray-400">Hesabın yok mu? Kayıt Ol</p>
+      <p id="toggle" class="text-xs text-center mt-4 cursor-pointer text-gray-400">Kayıt Ol</p>
     </div>
   </div>
 
@@ -50,7 +50,6 @@
     }));
     const auth = getAuth();
 
-    // --- Fonksiyonlar ---
     window.selectRoom = (id) => { localStorage.setItem('activeRoom', id); loadMessages(); };
     window.delR = (id) => remove(ref(db, 'rooms/' + id));
     window.delM = (id) => remove(ref(db, 'messages/' + localStorage.getItem('activeRoom') + '/' + id));
@@ -68,11 +67,10 @@
         const r = document.getElementById('rooms');
         r.innerHTML = '';
         s.forEach(c => {
-          const d = document.createElement('div');
-          d.className = "flex justify-between p-2 bg-[#36373d] rounded cursor-pointer";
-          d.innerHTML = `<span onclick="selectRoom('${c.key}')"># ${c.val().name}</span>
-                         <button onclick="delR('${c.key}')" class="text-red-500 font-bold">x</button>`;
-          r.appendChild(d);
+          r.innerHTML += `<div class="flex justify-between p-2 bg-[#36373d] rounded cursor-pointer">
+            <span onclick="selectRoom('${c.key}')"># ${c.val().name}</span>
+            <button onclick="delR('${c.key}')" class="text-red-500 font-bold">x</button>
+          </div>`;
         });
       });
     }
@@ -86,7 +84,7 @@
         s.forEach(c => {
           const v = c.val();
           m.innerHTML += `<div class="bg-[#2b2d31] p-2 rounded flex justify-between">
-            <div><b>${v.sender}:</b> ${v.text || `<img src="${v.img}" class="w-32">`}</div>
+            <div><b>${v.sender || 'User'}:</b> ${v.text || `<img src="${v.img}" class="w-32">`}</div>
             <button onclick="delM('${c.key}')" class="text-red-500">Sil</button>
           </div>`;
         });
@@ -96,7 +94,10 @@
     document.getElementById('send').onclick = () => {
       const room = localStorage.getItem('activeRoom');
       if(!room) return alert("Önce bir oda seç!");
-      set(push(ref(db, 'messages/' + room)), { sender: auth.currentUser.email.split('@')[0], text: document.getElementById('msg').value });
+      set(push(ref(db, 'messages/' + room)), { 
+        sender: auth.currentUser.email.split('@')[0], 
+        text: document.getElementById('msg').value 
+      });
       document.getElementById('msg').value = '';
     };
 
@@ -104,7 +105,10 @@
       const room = localStorage.getItem('activeRoom');
       if(!room) return alert("Önce bir oda seç!");
       const r = new FileReader();
-      r.onload = (e) => set(push(ref(db, 'messages/' + room)), { sender: auth.currentUser.email.split('@')[0], img: e.target.result });
+      r.onload = (e) => set(push(ref(db, 'messages/' + room)), { 
+        sender: auth.currentUser.email.split('@')[0], 
+        img: e.target.result 
+      });
       r.readAsDataURL(e.target.files[0]);
     };
 
