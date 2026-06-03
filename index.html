@@ -2,30 +2,32 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <title>Nexus Chat</title>
+  <title>Nexus Chat Pro</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-[#313338] text-white h-screen">
+<body class="bg-[#313338] text-white h-screen overflow-hidden">
 
   <div id="auth-screen" class="flex items-center justify-center h-full">
     <div class="bg-[#2b2d31] p-8 rounded-lg w-80 border border-gray-700">
       <h2 id="title" class="text-xl font-bold mb-4 text-center">Nexus Giriş</h2>
-      <input id="email" type="email" placeholder="E-posta" class="w-full p-2 mb-2 bg-[#1e1f22] rounded border border-gray-600">
-      <input id="pass" type="password" placeholder="Şifre" class="w-full p-2 mb-4 bg-[#1e1f22] rounded border border-gray-600">
-      <button id="btn" class="w-full bg-[#5865f2] p-2 rounded font-bold hover:bg-[#4752c4]">Giriş Yap</button>
-      <p id="toggle" class="text-xs text-center mt-4 cursor-pointer text-gray-400 hover:underline">Kayıt Ol</p>
+      <input id="email" type="email" placeholder="E-posta" class="w-full p-2 mb-2 bg-[#1e1f22] rounded">
+      <input id="pass" type="password" placeholder="Şifre" class="w-full p-2 mb-4 bg-[#1e1f22] rounded">
+      <button id="btn" class="w-full bg-[#5865f2] p-2 rounded font-bold">Giriş Yap</button>
+      <p id="toggle" class="text-xs text-center mt-4 cursor-pointer text-gray-400">Hesabın yok mu? Kayıt Ol</p>
     </div>
   </div>
 
   <div id="app-screen" class="hidden flex h-full">
-    <div class="w-64 bg-[#2b2d31] p-4">
+    <div class="w-64 bg-[#2b2d31] p-4 flex flex-col">
       <h2 class="font-bold mb-4">Kanallar</h2>
-      <button onclick="addRoom()" class="text-sm bg-green-600 w-full p-1 rounded">+ Yeni Oda</button>
-      <div id="rooms" class="mt-4 space-y-2"></div>
+      <button onclick="addRoom()" class="text-sm bg-green-600 w-full p-2 rounded mb-4">+ Yeni Oda</button>
+      <div id="rooms" class="flex-1 space-y-2 overflow-y-auto"></div>
     </div>
     <div class="flex-1 flex flex-col bg-[#313338]">
-      <div id="messages" class="flex-1 p-4 overflow-y-auto"></div>
+      <div id="messages" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
       <div class="p-4 flex gap-2">
+        <input type="file" id="fileInput" class="hidden" accept="image/*">
+        <button onclick="document.getElementById('fileInput').click()" class="bg-gray-700 px-3 rounded">📎</button>
         <input id="msg" class="flex-1 bg-[#1e1f22] p-2 rounded" placeholder="Mesaj yaz...">
         <button id="send" class="bg-[#5865f2] px-4 rounded">Gönder</button>
       </div>
@@ -35,21 +37,21 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
     const config = {
       apiKey: "AIzaSyA4LiP5506uWaX4h7b6TyuAdxxYTNMJ4aw",
       authDomain: "nexus-f439d.firebaseapp.com",
+      databaseURL: "https://nexus-f439d-default-rtdb.firebaseio.com",
       projectId: "nexus-f439d",
       storageBucket: "nexus-f439d.firebasestorage.app",
       messagingSenderId: "223527974037",
-      appId: "1:223527974037:web:91c740810a2aa4c2bc179c",
-      databaseURL: "https://nexus-f439d-default-rtdb.firebaseio.com"
+      appId: "1:223527974037:web:91c740810a2aa4c2bc179c"
     };
 
-    const app = initializeApp(config);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
+    const db = getDatabase(initializeApp(config));
+    const auth = getAuth();
+    let activeRoom = null;
 
     onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -63,8 +65,8 @@
       const e = document.getElementById('email').value;
       const p = document.getElementById('pass').value;
       const isLogin = document.getElementById('title').innerText === "Nexus Giriş";
-      if(isLogin) signInWithEmailAndPassword(auth, e, p).catch(err => alert(err.message));
-      else createUserWithEmailAndPassword(auth, e, p).catch(err => alert(err.message));
+      if(isLogin) signInWithEmailAndPassword(auth, e, p).catch(alert);
+      else createUserWithEmailAndPassword(auth, e, p).catch(alert);
     };
 
     document.getElementById('toggle').onclick = () => {
@@ -78,35 +80,47 @@
       if(name) set(push(ref(db, 'rooms')), { name });
     };
 
+    window.deleteRoom = (id) => remove(ref(db, 'rooms/' + id));
+    window.deleteMsg = (id) => remove(ref(db, 'messages/' + activeRoom + '/' + id));
+
     function loadRooms() {
       onValue(ref(db, 'rooms'), (s) => {
         const r = document.getElementById('rooms');
         r.innerHTML = '';
         s.forEach(c => {
           const div = document.createElement('div');
-          div.className = "cursor-pointer hover:text-blue-400";
-          div.innerText = "# " + c.val().name;
-          div.onclick = () => { window.activeRoom = c.key; loadMessages(); };
+          div.className = "flex justify-between items-center p-2 bg-[#36373d] rounded cursor-pointer";
+          div.innerHTML = `<span onclick="activeRoom='${c.key}'; loadMessages()"># ${c.val().name}</span>
+                           <button onclick="deleteRoom('${c.key}')" class="text-red-500">x</button>`;
           r.appendChild(div);
         });
       });
     }
 
     function loadMessages() {
-      onValue(ref(db, 'messages/' + window.activeRoom), (s) => {
+      onValue(ref(db, 'messages/' + activeRoom), (s) => {
         const m = document.getElementById('messages');
         m.innerHTML = '';
         s.forEach(c => {
-          m.innerHTML += `<div class="bg-[#2b2d31] p-2 rounded"><b>${c.val().sender}:</b> ${c.val().text}</div>`;
+          const v = c.val();
+          m.innerHTML += `<div class="bg-[#2b2d31] p-2 rounded flex justify-between">
+            <div><b>${v.sender}:</b> ${v.text || `<img src="${v.img}" class="w-32">`}</div>
+            <button onclick="deleteMsg('${c.key}')" class="text-red-500">Sil</button>
+          </div>`;
         });
       });
     }
 
     document.getElementById('send').onclick = () => {
-      if(!window.activeRoom) return alert("Oda seç!");
-      const m = document.getElementById('msg');
-      set(push(ref(db, 'messages/' + window.activeRoom)), { sender: auth.currentUser.email.split('@')[0], text: m.value });
-      m.value = '';
+      if(!activeRoom) return alert("Oda seç!");
+      set(push(ref(db, 'messages/' + activeRoom)), { sender: auth.currentUser.email.split('@')[0], text: document.getElementById('msg').value });
+      document.getElementById('msg').value = '';
+    };
+
+    document.getElementById('fileInput').onchange = (e) => {
+      const reader = new FileReader();
+      reader.onload = (r) => set(push(ref(db, 'messages/' + activeRoom)), { sender: auth.currentUser.email.split('@')[0], img: r.target.result });
+      reader.readAsDataURL(e.target.files[0]);
     };
   </script>
 </body>
