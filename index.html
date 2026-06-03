@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nexus Chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
 <body class="bg-[#313338] text-white font-sans h-screen flex flex-col overflow-hidden">
 
@@ -19,7 +16,7 @@
           <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kullanıcı Adı</label>
           <input id="username-input" type="text" placeholder="Rumuz yazın..." class="w-full p-2.5 mt-1 bg-[#1e1f22] rounded text-white focus:outline-none focus:ring-2 focus:ring-[#5865f2]">
         </div>
-        <button onclick="login()" class="w-full bg-[#5865f2] p-2.5 rounded font-bold hover:bg-[#4752c4] transition">Giriş Yap</button>
+        <button id="login-btn" class="w-full bg-[#5865f2] p-2.5 rounded font-bold hover:bg-[#4752c4] transition">Giriş Yap</button>
       </div>
     </div>
   </div>
@@ -36,22 +33,22 @@
         <div class="font-bold text-lg text-gray-200" id="current-room-title"># Bir oda seçin</div>
         <div id="user-tag" class="text-xs bg-[#23a55a] px-2 py-1 rounded font-bold"></div>
       </div>
-      
       <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
-      
       <div class="p-4 bg-[#313338]">
         <div class="bg-[#383a40] rounded-lg p-2 flex items-center gap-2">
-          <input type="file" id="file-input" class="hidden" accept="image/*" onchange="handleImageUpload(event)">
-          <button onclick="document.getElementById('file-input').click()" class="bg-[#4e5058] p-2 rounded-md hover:bg-gray-500 transition text-xl" title="Fotoğraf Yükle">📷</button>
-          <input id="msg-input" type="text" placeholder="Mesaj gönder..." onkeypress="if(event.key === 'Enter') sendTextMessage()" class="flex-1 bg-transparent text-white focus:outline-none px-2" disabled>
-          <button onclick="sendTextMessage()" class="bg-[#5865f2] px-4 py-1.5 rounded font-bold hover:bg-[#4752c4] transition">Gönder</button>
+          <input type="file" id="file-input" class="hidden" accept="image/*">
+          <button id="upload-btn" class="bg-[#4e5058] p-2 rounded-md hover:bg-gray-500 transition text-xl">📷</button>
+          <input id="msg-input" type="text" placeholder="Mesaj gönder..." class="flex-1 bg-transparent text-white focus:outline-none px-2" disabled>
+          <button id="send-btn" class="bg-[#5865f2] px-4 py-1.5 rounded font-bold hover:bg-[#4752c4] transition">Gönder</button>
         </div>
       </div>
     </div>
   </div>
 
-  <script>
-    // Güncel Firebase Yapılandırman
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
     const firebaseConfig = {
       apiKey: "AIzaSyDI9XLDpuM4sBjyzJasHGo6huzkGzitsCw",
       authDomain: "nexus-b88f3.firebaseapp.com",
@@ -61,9 +58,172 @@
       messagingSenderId: "817299865086",
       appId: "1:817299865086:web:a1e6ee37a3f67e764c94af"
     };
-    
-    // Uygulamayı Başlatma
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
+
+    // Firebase Başlatma Kontrolü
+    let app, database;
+    try {
+      app = initializeApp(firebaseConfig);
+      database = getDatabase(app);
+      console.log("Firebase başarıyla bağlandı.");
+    } catch (error) {
+      alert("Firebase bağlantı hatası: " + error.message);
+    }
 
     let currentUser = "";
+    let activeRoomId = "";
+    const MAX_MESSAGES = 50;
+
+    // Giriş Fonksiyonu
+    window.login = function() {
+      const usernameInput = document.getElementById('username-input');
+      const username = usernameInput.value.trim();
+      
+      if (!username) {
+        alert("Lütfen bir kullanıcı adı girin!");
+        return;
+      }
+      
+      currentUser = username;
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('app-screen').classList.remove('hidden');
+      document.getElementById('user-tag').innerText = "👤 " + currentUser;
+      
+      listenToRooms();
+    };
+
+    // Odaları Dinle
+    function listenToRooms() {
+      const roomsRef = ref(database, 'rooms');
+      onValue(roomsRef, (snapshot) => {
+        const roomsList = document.getElementById('rooms-list');
+        roomsList.innerHTML = '';
+        
+        if (!snapshot.exists()) {
+          set(ref(database, 'rooms/genel'), { name: 'genel-sohbet' });
+          return;
+        }
+
+        snapshot.forEach((childSnapshot) => {
+          const roomId = childSnapshot.key;
+          const roomData = childSnapshot.val();
+          const isActive = roomId === activeRoomId ? 'bg-[#404249] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-white';
+          
+          const roomDiv = document.createElement('div');
+          roomDiv.className = `p-2 rounded cursor-pointer font-medium flex items-center transition ${isActive}`;
+          roomDiv.innerHTML = `<span class="text-gray-500 mr-2">#</span> ${roomData.name}`;
+          roomDiv.onclick = () => switchRoom(roomId, roomData.name);
+          roomsList.appendChild(roomDiv);
+        });
+      }, (error) => {
+        alert("Veritabanı okuma hatası! Kuralları (Rules) true yaptığınızdan emin olun. Hata: " + error.message);
+      });
+    }
+
+    // Oda Değiştir
+    function switchRoom(id, name) {
+      activeRoomId = id;
+      document.getElementById('current-room-title').innerText = "# " + name;
+      document.getElementById('msg-input').removeAttribute('disabled');
+      document.getElementById('msg-input').placeholder = `#${name} kanalına mesaj gönder`;
+      
+      listenToRooms(); // Aktif odayı renklendirmek için listeyi yenile
+      listenToMessages();
+    }
+
+    // Yeni Oda Oluştur
+    window.createNewRoom = function() {
+      const roomName = prompt("Yeni oda adı:");
+      if (!roomName) return;
+      const cleanName = roomName.toLowerCase().replace(/\s+/g, '-');
+      const newRoomRef = push(ref(database, 'rooms'));
+      set(newRoomRef, { name: cleanName });
+    };
+
+    // Mesajları Dinle
+    function listenToMessages() {
+      const messagesRef = ref(database, 'messages/' + activeRoomId);
+      
+      onValue(messagesRef, (snapshot) => {
+        const container = document.getElementById('chat-messages');
+        container.innerHTML = '';
+        
+        if (!snapshot.exists()) {
+          container.innerHTML = `<div class="text-gray-500 text-center mt-4">Burada henüz mesaj yok.</div>`;
+          return;
+        }
+
+        let msgs = [];
+        snapshot.forEach((childSnapshot) => {
+          msgs.push({ id: childSnapshot.key, ...childSnapshot.val() });
+        });
+
+        if (msgs.length > MAX_MESSAGES) {
+          const deleteCount = msgs.length - MAX_MESSAGES;
+          for (let i = 0; i < deleteCount; i++) {
+            remove(ref(database, `messages/${activeRoomId}/${msgs[i].id}`));
+          }
+          return;
+        }
+
+        msgs.forEach(m => {
+          let contentHTML = m.text ? `<p class="text-gray-300 mt-1 break-words">${m.text}</p>` : '';
+          if (m.image) contentHTML += `<img src="${m.image}" class="max-w-xs rounded-lg mt-2 border border-gray-700 max-h-60 object-cover">`;
+
+          container.innerHTML += `
+            <div class="flex flex-col bg-[#2b2d31] p-3 rounded-lg border border-gray-800">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-[#5865f2] text-sm">${m.sender}</span>
+                <span class="text-[10px] text-gray-500">${m.time}</span>
+              </div>
+              ${contentHTML}
+            </div>`;
+        });
+        container.scrollTop = container.scrollHeight;
+      });
+    }
+
+    // Mesaj Gönder
+    window.sendTextMessage = function() {
+      const input = document.getElementById('msg-input');
+      const text = input.value.trim();
+      if (!text || !activeRoomId) return;
+
+      saveMessage(text, null);
+      input.value = '';
+    };
+
+    // Fotoğraf Seçimi
+    window.handleImageUpload = function(event) {
+      const file = event.target.files[0];
+      if (!file || !activeRoomId) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        saveMessage("", e.target.result);
+      };
+      reader.readAsDataURL(file);
+    };
+
+    function saveMessage(text, imageData) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const newMsgRef = push(ref(database, 'messages/' + activeRoomId));
+      set(newMsgRef, {
+        sender: currentUser,
+        text: text,
+        image: imageData,
+        time: timeStr
+      }).catch(err => {
+        alert("Mesaj gönderilemedi! Firebase Rules ayarlarını kontrol edin: " + err.message);
+      });
+    }
+
+    // Event Listener Bağlantıları
+    document.getElementById('login-btn').addEventListener('click', window.login);
+    document.getElementById('send-btn').addEventListener('click', window.sendTextMessage);
+    document.getElementById('upload-btn').addEventListener('click', () => document.getElementById('file-input').click());
+    document.getElementById('file-input').addEventListener('change', window.handleImageUpload);
+  </script>
+</body>
+</html>
