@@ -2,52 +2,42 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nexus Chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-[#313338] text-white font-sans h-screen flex flex-col overflow-hidden">
+<body class="bg-[#313338] text-white h-screen">
 
-  <div id="auth-screen" class="flex-1 flex flex-col items-center justify-center bg-[#1e1f22]">
-    <div class="bg-[#313338] p-8 rounded-lg shadow-2xl w-96 border border-gray-800">
-      <h2 class="text-2xl font-bold mb-6 text-center text-[#5865f2]">Nexus'a Katıl</h2>
-      <div class="space-y-4">
-        <div>
-          <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kullanıcı Adı</label>
-          <input id="username-input" type="text" placeholder="Rumuz yazın..." class="w-full p-2.5 mt-1 bg-[#1e1f22] rounded text-white focus:outline-none focus:ring-2 focus:ring-[#5865f2]">
-        </div>
-        <button id="login-btn" class="w-full bg-[#5865f2] p-2.5 rounded font-bold hover:bg-[#4752c4] transition">Giriş Yap</button>
-      </div>
+  <div id="auth-screen" class="flex items-center justify-center h-full">
+    <div class="bg-[#2b2d31] p-8 rounded-lg w-80 border border-gray-700">
+      <h2 id="title" class="text-xl font-bold mb-4 text-center">Nexus Giriş</h2>
+      <input id="email" type="email" placeholder="E-posta" class="w-full p-2 mb-2 bg-[#1e1f22] rounded">
+      <input id="pass" type="password" placeholder="Şifre" class="w-full p-2 mb-4 bg-[#1e1f22] rounded">
+      <button id="btn" class="w-full bg-[#5865f2] p-2 rounded font-bold hover:bg-[#4752c4]">Giriş Yap</button>
+      <p id="toggle" class="text-xs text-center mt-4 cursor-pointer text-gray-400 hover:underline">Kayıt Ol</p>
     </div>
   </div>
 
-  <div id="app-screen" class="hidden flex-1 flex h-full">
-    <div class="w-64 bg-[#2b2d31] flex flex-col p-3 border-r border-[#1e1f22]">
-      <h3 class="text-md font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2">Sohbet Kanalları</h3>
-      <div id="rooms-list" class="flex-1 space-y-1 overflow-y-auto"></div>
-      <button onclick="createNewRoom()" class="mt-4 bg-[#23a55a] p-2 rounded text-sm font-bold text-center hover:bg-[#1a7f43] transition">+ Yeni Oda Oluştur</button>
+  <div id="app-screen" class="hidden flex h-full">
+    <div class="w-64 bg-[#2b2d31] p-4">
+      <h2 class="font-bold mb-4">Kanallar</h2>
+      <button onclick="addRoom()" class="text-sm bg-green-600 w-full p-1 rounded">+ Yeni Oda</button>
+      <div id="rooms" class="mt-4 space-y-2"></div>
     </div>
-
     <div class="flex-1 flex flex-col bg-[#313338]">
-      <div class="p-4 bg-[#313338] border-b border-[#1e1f22] flex justify-between items-center">
-        <div class="font-bold text-lg text-gray-200" id="current-room-title"># Bir oda seçin</div>
-        <div id="user-tag" class="text-xs bg-[#23a55a] px-2 py-1 rounded font-bold"></div>
-      </div>
-      <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
-      <div class="p-4 bg-[#313338]">
-        <div class="bg-[#383a40] rounded-lg p-2 flex items-center gap-2">
-          <input id="msg-input" type="text" placeholder="Mesaj gönder..." class="flex-1 bg-transparent text-white focus:outline-none px-2" disabled>
-          <button id="send-btn" class="bg-[#5865f2] px-4 py-1.5 rounded font-bold hover:bg-[#4752c4] transition">Gönder</button>
-        </div>
+      <div id="messages" class="flex-1 p-4 overflow-y-auto"></div>
+      <div class="p-4 flex gap-2">
+        <input id="msg" class="flex-1 bg-[#1e1f22] p-2 rounded" placeholder="Mesaj yaz...">
+        <button id="send" class="bg-[#5865f2] px-4 rounded">Gönder</button>
       </div>
     </div>
   </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    const firebaseConfig = {
+    const config = {
       apiKey: "AIzaSyA4LiP5506uWaX4h7b6TyuAdxxYTNMJ4aw",
       authDomain: "nexus-f439d.firebaseapp.com",
       databaseURL: "https://nexus-f439d-default-rtdb.firebaseio.com",
@@ -57,58 +47,58 @@
       appId: "1:223527974037:web:91c740810a2aa4c2bc179c"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const database = getDatabase(app);
-    let currentUser = "", activeRoomId = "";
+    const app = initializeApp(config);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+    let userEmail = "";
 
-    window.login = () => {
-      const u = document.getElementById('username-input').value.trim();
-      if (!u) return alert("Rumuz yaz!");
-      currentUser = u;
-      document.getElementById('auth-screen').classList.add('hidden');
-      document.getElementById('app-screen').classList.remove('hidden');
-      document.getElementById('user-tag').innerText = "👤 " + currentUser;
-      listenToRooms();
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        userEmail = user.email;
+        document.getElementById('auth-screen').classList.add('hidden');
+        document.getElementById('app-screen').classList.remove('hidden');
+        loadRooms();
+      }
+    });
+
+    document.getElementById('btn').onclick = () => {
+      const e = document.getElementById('email').value;
+      const p = document.getElementById('pass').value;
+      const isLogin = document.getElementById('title').innerText === "Nexus Giriş";
+      if(isLogin) signInWithEmailAndPassword(auth, e, p).catch(err => alert(err.message));
+      else createUserWithEmailAndPassword(auth, e, p).catch(err => alert(err.message));
     };
 
-    function listenToRooms() {
-      onValue(ref(database, 'rooms'), (snapshot) => {
-        const list = document.getElementById('rooms-list');
-        list.innerHTML = '';
-        if (!snapshot.exists()) set(ref(database, 'rooms/genel'), { name: 'genel' });
-        snapshot.forEach(s => {
-          const d = document.createElement('div');
-          d.className = "p-2 cursor-pointer text-gray-400 hover:text-white";
-          d.innerText = "# " + s.val().name;
-          d.onclick = () => switchRoom(s.key, s.val().name);
-          list.appendChild(d);
-        });
-      });
-    }
+    document.getElementById('toggle').onclick = () => {
+      const t = document.getElementById('title');
+      t.innerText = t.innerText === "Nexus Giriş" ? "Nexus Kayıt" : "Nexus Giriş";
+      document.getElementById('btn').innerText = t.innerText === "Nexus Giriş" ? "Giriş Yap" : "Kayıt Ol";
+    };
 
-    function switchRoom(id, name) {
-      activeRoomId = id;
-      document.getElementById('current-room-title').innerText = "# " + name;
-      document.getElementById('msg-input').disabled = false;
-      onValue(ref(database, 'messages/' + id), (snapshot) => {
-        const c = document.getElementById('chat-messages');
-        c.innerHTML = '';
-        snapshot.forEach(m => {
-          c.innerHTML += `<div class="bg-[#2b2d31] p-2 rounded"><b>${m.val().sender}:</b> ${m.val().text}</div>`;
-        });
-      });
-    }
-
-    window.createNewRoom = () => {
+    window.addRoom = () => {
       const name = prompt("Oda adı:");
-      if (name) set(push(ref(database, 'rooms')), { name });
+      if(name) set(push(ref(db, 'rooms')), { name });
     };
 
-    document.getElementById('login-btn').onclick = window.login;
-    document.getElementById('send-btn').onclick = () => {
-      const msg = document.getElementById('msg-input');
-      set(push(ref(database, 'messages/' + activeRoomId)), { sender: currentUser, text: msg.value });
-      msg.value = '';
+    function loadRooms() {
+      onValue(ref(db, 'rooms'), (s) => {
+        const r = document.getElementById('rooms');
+        r.innerHTML = '';
+        s.forEach(c => {
+          const div = document.createElement('div');
+          div.className = "cursor-pointer hover:text-blue-400";
+          div.innerText = "# " + c.val().name;
+          div.onclick = () => window.activeRoom = c.key;
+          r.appendChild(div);
+        });
+      });
+    }
+
+    document.getElementById('send').onclick = () => {
+      if(!window.activeRoom) return alert("Oda seç!");
+      const m = document.getElementById('msg');
+      set(push(ref(db, 'messages/' + window.activeRoom)), { sender: userEmail.split('@')[0], text: m.value });
+      m.value = '';
     };
   </script>
 </body>
