@@ -3,36 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Discord-ish Chat Room</title>
+  <title>Nexus Chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
 <body class="bg-[#313338] text-white font-sans h-screen flex flex-col overflow-hidden">
 
   <div id="auth-screen" class="flex-1 flex flex-col items-center justify-center bg-[#1e1f22]">
     <div class="bg-[#313338] p-8 rounded-lg shadow-2xl w-96 border border-gray-800">
-      <h2 class="text-2xl font-bold mb-6 text-center text-[#5865f2]">Sohbete Katıl</h2>
+      <h2 class="text-2xl font-bold mb-6 text-center text-[#5865f2]">Nexus'a Katıl</h2>
       <div class="space-y-4">
         <div>
           <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kullanıcı Adı</label>
           <input id="username-input" type="text" placeholder="Rumuz yazın..." class="w-full p-2.5 mt-1 bg-[#1e1f22] rounded text-white focus:outline-none focus:ring-2 focus:ring-[#5865f2]">
         </div>
-        <button onclick="login()" class="w-full bg-[#5865f2] p-2.5 rounded font-bold hover:bg-[#4752c4] transition duration-200">Giriş Yap</button>
+        <button onclick="login()" class="w-full bg-[#5865f2] p-2.5 rounded font-bold hover:bg-[#4752c4] transition">Giriş Yap</button>
       </div>
     </div>
   </div>
 
   <div id="app-screen" class="hidden flex-1 flex h-full">
-    
     <div class="w-64 bg-[#2b2d31] flex flex-col p-3 border-r border-[#1e1f22]">
-      <div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
-        <h3 class="text-md font-bold text-gray-200">Sohbet Kanalları</h3>
-      </div>
-      
+      <h3 class="text-md font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2">Sohbet Kanalları</h3>
       <div id="rooms-list" class="flex-1 space-y-1 overflow-y-auto"></div>
-      
-      <button onclick="createNewRoom()" class="mt-4 bg-[#23a55a] p-2 rounded text-sm font-bold text-center hover:bg-[#1a7f43] transition">
-        + Yeni Oda Oluştur
-      </button>
+      <button onclick="createNewRoom()" class="mt-4 bg-[#23a55a] p-2 rounded text-sm font-bold text-center hover:bg-[#1a7f43] transition">+ Yeni Oda Oluştur</button>
     </div>
 
     <div class="flex-1 flex flex-col bg-[#313338]">
@@ -40,54 +36,34 @@
         <div class="font-bold text-lg text-gray-200" id="current-room-title"># Bir oda seçin</div>
         <div id="user-tag" class="text-xs bg-[#23a55a] px-2 py-1 rounded font-bold"></div>
       </div>
-
-      <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4">
-        <div class="text-gray-500 text-center mt-10">Sohbete başlamak için sol taraftan bir oda seçin.</div>
-      </div>
-
+      
+      <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
+      
       <div class="p-4 bg-[#313338]">
         <div class="bg-[#383a40] rounded-lg p-2 flex items-center gap-2">
           <input type="file" id="file-input" class="hidden" accept="image/*" onchange="handleImageUpload(event)">
-          <button onclick="document.getElementById('file-input').click()" class="bg-[#4e5058] p-2 rounded-md hover:bg-gray-500 transition text-xl" title="Fotoğraf Yükle">
-            📷
-          </button>
-          
+          <button onclick="document.getElementById('file-input').click()" class="bg-[#4e5058] p-2 rounded-md hover:bg-gray-500 transition text-xl" title="Fotoğraf Yükle">📷</button>
           <input id="msg-input" type="text" placeholder="Mesaj gönder..." onkeypress="if(event.key === 'Enter') sendTextMessage()" class="flex-1 bg-transparent text-white focus:outline-none px-2" disabled>
-          
           <button onclick="sendTextMessage()" class="bg-[#5865f2] px-4 py-1.5 rounded font-bold hover:bg-[#4752c4] transition">Gönder</button>
         </div>
       </div>
-
     </div>
   </div>
 
   <script>
-    let rooms = JSON.parse(localStorage.getItem('chat_rooms')) || [
-      { id: 'genel', name: 'genel-sohbet' },
-      { id: 'oyun', name: 'oyun-grubu' }
-    ];
-    let messages = JSON.parse(localStorage.getItem('chat_messages')) || [];
+    // Güncel Firebase Yapılandırman
+    const firebaseConfig = {
+      apiKey: "AIzaSyDI9XLDpuM4sBjyzJasHGo6huzkGzitsCw",
+      authDomain: "nexus-b88f3.firebaseapp.com",
+      databaseURL: "https://nexus-b88f3-default-rtdb.firebaseio.com",
+      projectId: "nexus-b88f3",
+      storageBucket: "nexus-b88f3.firebasestorage.app",
+      messagingSenderId: "817299865086",
+      appId: "1:817299865086:web:a1e6ee37a3f67e764c94af"
+    };
     
+    // Uygulamayı Başlatma
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
     let currentUser = "";
-    let activeRoomId = "";
-    const MAX_MESSAGES_PER_ROOM = 50; // Belirttiğin sınır (FIFO): Oda başına max 50 mesaj tutar, eskisini siler.
-
-    function login() {
-      const username = document.getElementById('username-input').value.trim();
-      if (!username) return alert("Lütfen bir kullanıcı adı girin!");
-      
-      currentUser = username;
-      document.getElementById('auth-screen').classList.add('hidden');
-      document.getElementById('app-screen').classList.remove('hidden');
-      document.getElementById('user-tag').innerText = "👤 " + currentUser;
-      
-      renderRooms();
-    }
-
-    function renderRooms() {
-      const list = document.getElementById('rooms-list');
-      list.innerHTML = '';
-      rooms.forEach(room => {
-        const isActive = room.id === activeRoomId ? 'bg-[#404249] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-white';
-        list.innerHTML += `
-          <div onclick="switchRoom('${room.id}', '${
