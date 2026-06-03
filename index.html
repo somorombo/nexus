@@ -8,28 +8,28 @@
 <body class="bg-[#313338] text-white h-screen overflow-hidden">
 
   <div id="auth-screen" class="flex items-center justify-center h-full">
-    <div class="bg-[#2b2d31] p-8 rounded-lg w-80 border border-gray-700">
+    <div class="bg-[#2b2d31] p-8 rounded-lg w-80 border border-gray-700 shadow-xl">
       <h2 id="title" class="text-xl font-bold mb-4 text-center">Nexus Giriş</h2>
-      <input id="email" type="email" placeholder="E-posta" class="w-full p-2 mb-2 bg-[#1e1f22] rounded">
-      <input id="pass" type="password" placeholder="Şifre" class="w-full p-2 mb-4 bg-[#1e1f22] rounded">
-      <button id="btn" class="w-full bg-[#5865f2] p-2 rounded font-bold">Giriş Yap</button>
-      <p id="toggle" class="text-xs text-center mt-4 cursor-pointer text-gray-400">Kayıt Ol</p>
+      <input id="email" type="email" placeholder="E-posta" class="w-full p-2 mb-2 bg-[#1e1f22] rounded border border-gray-600 outline-none">
+      <input id="pass" type="password" placeholder="Şifre" class="w-full p-2 mb-4 bg-[#1e1f22] rounded border border-gray-600 outline-none">
+      <button id="btn" class="w-full bg-[#5865f2] p-2 rounded font-bold hover:bg-[#4752c4]">Giriş Yap</button>
+      <p id="toggle" class="text-xs text-center mt-4 cursor-pointer text-gray-400 hover:text-white">Hesabın yok mu? Kayıt Ol</p>
     </div>
   </div>
 
   <div id="app-screen" class="hidden flex h-full">
-    <div class="w-64 bg-[#2b2d31] p-4 flex flex-col">
+    <div class="w-64 bg-[#2b2d31] p-4 flex flex-col border-r border-gray-700">
       <h2 class="font-bold mb-4">Kanallar</h2>
-      <button onclick="addRoom()" class="text-sm bg-green-600 w-full p-2 rounded mb-4">+ Yeni Oda</button>
+      <button onclick="addRoom()" class="text-sm bg-green-600 w-full p-2 rounded mb-4 hover:bg-green-700 transition">+ Yeni Oda</button>
       <div id="rooms" class="flex-1 space-y-2 overflow-y-auto"></div>
     </div>
     <div class="flex-1 flex flex-col bg-[#313338]">
       <div id="messages" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
-      <div class="p-4 flex gap-2">
+      <div class="p-4 flex gap-2 border-t border-gray-700">
         <input type="file" id="fileInput" class="hidden" accept="image/*">
-        <button onclick="document.getElementById('fileInput').click()" class="bg-gray-700 px-3 rounded">📎</button>
-        <input id="msg" class="flex-1 bg-[#1e1f22] p-2 rounded" placeholder="Mesaj yaz...">
-        <button id="send" class="bg-[#5865f2] px-4 rounded">Gönder</button>
+        <button onclick="document.getElementById('fileInput').click()" class="bg-gray-700 px-3 rounded hover:bg-gray-600">📎</button>
+        <input id="msg" class="flex-1 bg-[#1e1f22] p-2 rounded border border-gray-700 outline-none" placeholder="Mesaj yaz...">
+        <button id="send" class="bg-[#5865f2] px-4 rounded hover:bg-[#4752c4] transition">Gönder</button>
       </div>
     </div>
   </div>
@@ -50,6 +50,7 @@
     }));
     const auth = getAuth();
 
+    // Global Yardımcılar
     window.selectRoom = (id) => { localStorage.setItem('activeRoom', id); loadMessages(); };
     window.delR = (id) => remove(ref(db, 'rooms/' + id));
     window.delM = (id) => remove(ref(db, 'messages/' + localStorage.getItem('activeRoom') + '/' + id));
@@ -67,9 +68,9 @@
         const r = document.getElementById('rooms');
         r.innerHTML = '';
         s.forEach(c => {
-          r.innerHTML += `<div class="flex justify-between p-2 bg-[#36373d] rounded cursor-pointer">
-            <span onclick="selectRoom('${c.key}')"># ${c.val().name}</span>
-            <button onclick="delR('${c.key}')" class="text-red-500 font-bold">x</button>
+          r.innerHTML += `<div class="flex justify-between p-2 bg-[#36373d] rounded cursor-pointer hover:bg-[#404249]">
+            <span onclick="selectRoom('${c.key}')" class="truncate"># ${c.val().name}</span>
+            <button onclick="delR('${c.key}')" class="text-red-500 font-bold px-2">x</button>
           </div>`;
         });
       });
@@ -83,21 +84,21 @@
         m.innerHTML = '';
         s.forEach(c => {
           const v = c.val();
-          m.innerHTML += `<div class="bg-[#2b2d31] p-2 rounded flex justify-between">
-            <div><b>${v.sender || 'User'}:</b> ${v.text || `<img src="${v.img}" class="w-32">`}</div>
-            <button onclick="delM('${c.key}')" class="text-red-500">Sil</button>
+          m.innerHTML += `<div class="bg-[#2b2d31] p-3 rounded flex justify-between items-center">
+            <div><b class="text-blue-400">${v.sender || 'User'}:</b> ${v.text || `<img src="${v.img}" class="max-w-xs rounded">`}</div>
+            <button onclick="delM('${c.key}')" class="text-red-500 hover:text-red-300 ml-4">Sil</button>
           </div>`;
         });
+        m.scrollTop = m.scrollHeight; // Yeni mesajda aşağı kaydır
       });
     }
 
     document.getElementById('send').onclick = () => {
       const room = localStorage.getItem('activeRoom');
+      const text = document.getElementById('msg').value;
       if(!room) return alert("Önce bir oda seç!");
-      set(push(ref(db, 'messages/' + room)), { 
-        sender: auth.currentUser.email.split('@')[0], 
-        text: document.getElementById('msg').value 
-      });
+      if(!text) return;
+      set(push(ref(db, 'messages/' + room)), { sender: auth.currentUser.email.split('@')[0], text: text });
       document.getElementById('msg').value = '';
     };
 
@@ -105,10 +106,7 @@
       const room = localStorage.getItem('activeRoom');
       if(!room) return alert("Önce bir oda seç!");
       const r = new FileReader();
-      r.onload = (e) => set(push(ref(db, 'messages/' + room)), { 
-        sender: auth.currentUser.email.split('@')[0], 
-        img: e.target.result 
-      });
+      r.onload = (e) => set(push(ref(db, 'messages/' + room)), { sender: auth.currentUser.email.split('@')[0], img: e.target.result });
       r.readAsDataURL(e.target.files[0]);
     };
 
