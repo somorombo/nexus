@@ -49,31 +49,24 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+    // Yeni Gönderdiğin Firebase Bilgileri
     const firebaseConfig = {
-      apiKey: "AIzaSyDI9XLDpuM4sBjyzJasHGo6huzkGzitsCw",
-      authDomain: "nexus-b88f3.firebaseapp.com",
-      databaseURL: "https://nexus-b88f3-default-rtdb.firebaseio.com",
-      projectId: "nexus-b88f3",
-      storageBucket: "nexus-b88f3.firebasestorage.app",
-      messagingSenderId: "817299865086",
-      appId: "1:817299865086:web:a1e6ee37a3f67e764c94af"
+      apiKey: "AIzaSyA4LiP5506uWaX4h7b6TyuAdxxYTNMJ4aw",
+      authDomain: "nexus-f439d.firebaseapp.com",
+      databaseURL: "https://nexus-f439d-default-rtdb.firebaseio.com",
+      projectId: "nexus-f439d",
+      storageBucket: "nexus-f439d.firebasestorage.app",
+      messagingSenderId: "223527974037",
+      appId: "1:223527974037:web:91c740810a2aa4c2bc179c"
     };
 
-    // Firebase Başlatma Kontrolü
-    let app, database;
-    try {
-      app = initializeApp(firebaseConfig);
-      database = getDatabase(app);
-      console.log("Firebase başarıyla bağlandı.");
-    } catch (error) {
-      alert("Firebase bağlantı hatası: " + error.message);
-    }
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
 
     let currentUser = "";
     let activeRoomId = "";
     const MAX_MESSAGES = 50;
 
-    // Giriş Fonksiyonu
     window.login = function() {
       const usernameInput = document.getElementById('username-input');
       const username = usernameInput.value.trim();
@@ -91,7 +84,6 @@
       listenToRooms();
     };
 
-    // Odaları Dinle
     function listenToRooms() {
       const roomsRef = ref(database, 'rooms');
       onValue(roomsRef, (snapshot) => {
@@ -115,115 +107,18 @@
           roomsList.appendChild(roomDiv);
         });
       }, (error) => {
-        alert("Veritabanı okuma hatası! Kuralları (Rules) true yaptığınızdan emin olun. Hata: " + error.message);
+        alert("Veritabanı bağlantı hatası: " + error.message);
       });
     }
 
-    // Oda Değiştir
     function switchRoom(id, name) {
       activeRoomId = id;
       document.getElementById('current-room-title').innerText = "# " + name;
       document.getElementById('msg-input').removeAttribute('disabled');
       document.getElementById('msg-input').placeholder = `#${name} kanalına mesaj gönder`;
       
-      listenToRooms(); // Aktif odayı renklendirmek için listeyi yenile
+      listenToRooms();
       listenToMessages();
     }
 
-    // Yeni Oda Oluştur
-    window.createNewRoom = function() {
-      const roomName = prompt("Yeni oda adı:");
-      if (!roomName) return;
-      const cleanName = roomName.toLowerCase().replace(/\s+/g, '-');
-      const newRoomRef = push(ref(database, 'rooms'));
-      set(newRoomRef, { name: cleanName });
-    };
-
-    // Mesajları Dinle
-    function listenToMessages() {
-      const messagesRef = ref(database, 'messages/' + activeRoomId);
-      
-      onValue(messagesRef, (snapshot) => {
-        const container = document.getElementById('chat-messages');
-        container.innerHTML = '';
-        
-        if (!snapshot.exists()) {
-          container.innerHTML = `<div class="text-gray-500 text-center mt-4">Burada henüz mesaj yok.</div>`;
-          return;
-        }
-
-        let msgs = [];
-        snapshot.forEach((childSnapshot) => {
-          msgs.push({ id: childSnapshot.key, ...childSnapshot.val() });
-        });
-
-        if (msgs.length > MAX_MESSAGES) {
-          const deleteCount = msgs.length - MAX_MESSAGES;
-          for (let i = 0; i < deleteCount; i++) {
-            remove(ref(database, `messages/${activeRoomId}/${msgs[i].id}`));
-          }
-          return;
-        }
-
-        msgs.forEach(m => {
-          let contentHTML = m.text ? `<p class="text-gray-300 mt-1 break-words">${m.text}</p>` : '';
-          if (m.image) contentHTML += `<img src="${m.image}" class="max-w-xs rounded-lg mt-2 border border-gray-700 max-h-60 object-cover">`;
-
-          container.innerHTML += `
-            <div class="flex flex-col bg-[#2b2d31] p-3 rounded-lg border border-gray-800">
-              <div class="flex items-center gap-2">
-                <span class="font-bold text-[#5865f2] text-sm">${m.sender}</span>
-                <span class="text-[10px] text-gray-500">${m.time}</span>
-              </div>
-              ${contentHTML}
-            </div>`;
-        });
-        container.scrollTop = container.scrollHeight;
-      });
-    }
-
-    // Mesaj Gönder
-    window.sendTextMessage = function() {
-      const input = document.getElementById('msg-input');
-      const text = input.value.trim();
-      if (!text || !activeRoomId) return;
-
-      saveMessage(text, null);
-      input.value = '';
-    };
-
-    // Fotoğraf Seçimi
-    window.handleImageUpload = function(event) {
-      const file = event.target.files[0];
-      if (!file || !activeRoomId) return;
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        saveMessage("", e.target.result);
-      };
-      reader.readAsDataURL(file);
-    };
-
-    function saveMessage(text, imageData) {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      const newMsgRef = push(ref(database, 'messages/' + activeRoomId));
-      set(newMsgRef, {
-        sender: currentUser,
-        text: text,
-        image: imageData,
-        time: timeStr
-      }).catch(err => {
-        alert("Mesaj gönderilemedi! Firebase Rules ayarlarını kontrol edin: " + err.message);
-      });
-    }
-
-    // Event Listener Bağlantıları
-    document.getElementById('login-btn').addEventListener('click', window.login);
-    document.getElementById('send-btn').addEventListener('click', window.sendTextMessage);
-    document.getElementById('upload-btn').addEventListener('click', () => document.getElementById('file-input').click());
-    document.getElementById('file-input').addEventListener('change', window.handleImageUpload);
-  </script>
-</body>
-</html>
+    window.createNewRoom =
