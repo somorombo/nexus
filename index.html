@@ -36,8 +36,6 @@
       <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
       <div class="p-4 bg-[#313338]">
         <div class="bg-[#383a40] rounded-lg p-2 flex items-center gap-2">
-          <input type="file" id="file-input" class="hidden" accept="image/*">
-          <button id="upload-btn" class="bg-[#4e5058] p-2 rounded-md hover:bg-gray-500 transition text-xl">📷</button>
           <input id="msg-input" type="text" placeholder="Mesaj gönder..." class="flex-1 bg-transparent text-white focus:outline-none px-2" disabled>
           <button id="send-btn" class="bg-[#5865f2] px-4 py-1.5 rounded font-bold hover:bg-[#4752c4] transition">Gönder</button>
         </div>
@@ -47,9 +45,8 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // Yeni Gönderdiğin Firebase Bilgileri
     const firebaseConfig = {
       apiKey: "AIzaSyA4LiP5506uWaX4h7b6TyuAdxxYTNMJ4aw",
       authDomain: "nexus-f439d.firebaseapp.com",
@@ -62,63 +59,57 @@
 
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
+    let currentUser = "", activeRoomId = "";
 
-    let currentUser = "";
-    let activeRoomId = "";
-    const MAX_MESSAGES = 50;
-
-    window.login = function() {
-      const usernameInput = document.getElementById('username-input');
-      const username = usernameInput.value.trim();
-      
-      if (!username) {
-        alert("Lütfen bir kullanıcı adı girin!");
-        return;
-      }
-      
-      currentUser = username;
+    window.login = () => {
+      const u = document.getElementById('username-input').value.trim();
+      if (!u) return alert("Rumuz yaz!");
+      currentUser = u;
       document.getElementById('auth-screen').classList.add('hidden');
       document.getElementById('app-screen').classList.remove('hidden');
       document.getElementById('user-tag').innerText = "👤 " + currentUser;
-      
       listenToRooms();
     };
 
     function listenToRooms() {
-      const roomsRef = ref(database, 'rooms');
-      onValue(roomsRef, (snapshot) => {
-        const roomsList = document.getElementById('rooms-list');
-        roomsList.innerHTML = '';
-        
-        if (!snapshot.exists()) {
-          set(ref(database, 'rooms/genel'), { name: 'genel-sohbet' });
-          return;
-        }
-
-        snapshot.forEach((childSnapshot) => {
-          const roomId = childSnapshot.key;
-          const roomData = childSnapshot.val();
-          const isActive = roomId === activeRoomId ? 'bg-[#404249] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-white';
-          
-          const roomDiv = document.createElement('div');
-          roomDiv.className = `p-2 rounded cursor-pointer font-medium flex items-center transition ${isActive}`;
-          roomDiv.innerHTML = `<span class="text-gray-500 mr-2">#</span> ${roomData.name}`;
-          roomDiv.onclick = () => switchRoom(roomId, roomData.name);
-          roomsList.appendChild(roomDiv);
+      onValue(ref(database, 'rooms'), (snapshot) => {
+        const list = document.getElementById('rooms-list');
+        list.innerHTML = '';
+        if (!snapshot.exists()) set(ref(database, 'rooms/genel'), { name: 'genel' });
+        snapshot.forEach(s => {
+          const d = document.createElement('div');
+          d.className = "p-2 cursor-pointer text-gray-400 hover:text-white";
+          d.innerText = "# " + s.val().name;
+          d.onclick = () => switchRoom(s.key, s.val().name);
+          list.appendChild(d);
         });
-      }, (error) => {
-        alert("Veritabanı bağlantı hatası: " + error.message);
       });
     }
 
     function switchRoom(id, name) {
       activeRoomId = id;
       document.getElementById('current-room-title').innerText = "# " + name;
-      document.getElementById('msg-input').removeAttribute('disabled');
-      document.getElementById('msg-input').placeholder = `#${name} kanalına mesaj gönder`;
-      
-      listenToRooms();
-      listenToMessages();
+      document.getElementById('msg-input').disabled = false;
+      onValue(ref(database, 'messages/' + id), (snapshot) => {
+        const c = document.getElementById('chat-messages');
+        c.innerHTML = '';
+        snapshot.forEach(m => {
+          c.innerHTML += `<div class="bg-[#2b2d31] p-2 rounded"><b>${m.val().sender}:</b> ${m.val().text}</div>`;
+        });
+      });
     }
 
-    window.createNewRoom =
+    window.createNewRoom = () => {
+      const name = prompt("Oda adı:");
+      if (name) set(push(ref(database, 'rooms')), { name });
+    };
+
+    document.getElementById('login-btn').onclick = window.login;
+    document.getElementById('send-btn').onclick = () => {
+      const msg = document.getElementById('msg-input');
+      set(push(ref(database, 'messages/' + activeRoomId)), { sender: currentUser, text: msg.value });
+      msg.value = '';
+    };
+  </script>
+</body>
+</html>
